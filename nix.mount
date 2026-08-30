@@ -1,0 +1,15 @@
+[Unit]
+Description=Mount /var/nix to /nix for Nix Package Manager
+Before=local-fs.pre.target
+DefaultDependencies=no
+Conflicts=shutdown.target
+After=sysinit.target
+
+[Mount]
+What=/var/nix
+Where=/nix
+Type=none
+Options=bind
+
+[Install]
+WantedBy=multi-user.target
