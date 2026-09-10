@@ -83,9 +83,22 @@ jobs:
             --config /config.toml \
             ${{ needs.build-image.outputs.image_ref }}:latest
 
+      - name: Découper l'ISO (limite GitHub Release de 2 Go par fichier)
+        run: |
+          cd output/bootiso
+          split -b 1900M -d --additional-suffix=.part install.iso install.iso.
+          sha256sum install.iso > install.iso.sha256
+          rm install.iso
+          ls -lh
+
       - name: Publier l'ISO en Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: iso-${{ github.run_number }}
           name: "ISO du ${{ github.run_id }}"
-          files: output/bootiso/install.iso
+          body: |
+            ISO découpée en morceaux de ~1.9 Go à cause de la limite GitHub de 2 Go/fichier.
+            Réassembler avec : `cat install.iso.*.part > install.iso` puis vérifier avec `sha256sum -c install.iso.sha256`.
+          files: |
+            output/bootiso/install.iso.*.part
+            output/bootiso/install.iso.sha256
