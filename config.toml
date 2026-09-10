@@ -1,0 +1,4 @@
+[[customizations.user]]
+name = "yurii"
+groups = ["wheel"]
+key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHV1coipI6pgY8M/sWM5PRZ/Y+PczeG9V4VX4NFHx5OK rayconstantyjulian@gmail.com"
