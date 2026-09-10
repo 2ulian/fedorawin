@@ -1,0 +1,74 @@
+name: Build bootc image et ISO
+
+on:
+  schedule:
+    - cron: '0 0 * * 5'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: fedora-atomic
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_ref: ${{ steps.vars.outputs.image_ref }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Définir la référence de l'image
+        id: vars
+        run: echo "image_ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
+
+      - name: Connexion à GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      - name: Build de l'image
+        run: podman build -t ${{ steps.vars.outputs.image_ref }}:latest -f Containerfile .
+
+      - name: Push (latest + tag daté)
+        run: |
+          podman push ${{ steps.vars.outputs.image_ref }}:latest
+          DATE_TAG=$(date +%Y%m%d)
+          podman tag ${{ steps.vars.outputs.image_ref }}:latest ${{ steps.vars.outputs.image_ref }}:$DATE_TAG
+          podman push ${{ steps.vars.outputs.image_ref }}:$DATE_TAG
+
+  build-iso:
+    needs: build-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Connexion à GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin --authfile ./auth.json
+
+      - name: Générer l'ISO avec bootc-image-builder
+        run: |
+          mkdir -p output
+          sudo podman run \
+            --rm --privileged \
+            --pull=newer \
+            --security-opt label=type:unconfined_t \
+            -v $(pwd)/config.toml:/config.toml:ro \
+            -v $(pwd)/output:/output \
+            -v $(pwd)/auth.json:/run/containers/0/auth.json:ro \
+            quay.io/centos-bootc/bootc-image-builder:latest \
+            --type iso \
+            --config /config.toml \
+            ${{ needs.build-image.outputs.image_ref }}:latest
+
+      - name: Publier l'ISO en Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: iso-${{ github.run_number }}
+          name: "ISO du ${{ github.run_id }}"
+          files: output/bootiso/install.iso
