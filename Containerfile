@@ -2,39 +2,29 @@ FROM quay.io/fedora/fedora-bootc:44
 
 ENV DRACUT_NO_XATTR=1
 
-RUN <<EOF
-set -xeuo pipefail
-
-# RPM fusion
-dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
-# for copr to work:
-dnf install -y dnf5-plugins
-EOF
+# RPM fusion, and dnf5-plugins for copr to work
+RUN set -xeuo pipefail && \
+    dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm && \
+    dnf install -y dnf5-plugins
 
 #Cachyos kernel
 RUN dnf remove -y --setopt=protect_running_kernel=false kernel kernel-core kernel-modules kernel-modules-core kernel-modules-extra
-RUN <<EOF
-dnf copr enable -y bieszczaders/kernel-cachyos
-dnf install -y --setopt=tsflags=noscripts kernel-cachyos kernel-cachyos-devel-matched
-EOF
+RUN dnf copr enable -y bieszczaders/kernel-cachyos && \
+    dnf install -y --setopt=tsflags=noscripts kernel-cachyos kernel-cachyos-devel-matched
 
 
 #Cachyos addons
-RUN <<EOF
-dnf copr enable -y bieszczaders/kernel-cachyos-addons
-dnf swap -y zram-generator-defaults cachyos-settings
-dnf install -y scx-scheds scx-tools ananicy-cpp
-systemctl enable ananicy-cpp
-EOF
+RUN dnf copr enable -y bieszczaders/kernel-cachyos-addons && \
+    dnf swap -y zram-generator-defaults cachyos-settings && \
+    dnf install -y scx-scheds scx-tools ananicy-cpp && \
+    systemctl enable ananicy-cpp
 
 #add iommu support via dracut conf
 RUN mkdir -p /etc/dracut.conf.d && echo 'add_drivers+=" vfio vfio_iommu_type1 vfio_pci vfio_virqfd "' > /etc/dracut.conf.d/vfio.conf
 
 #dracut
-RUN <<EOF
-mkdir -p /var/roothome
-KVER=$(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}\n' kernel-cachyos-core) && echo "Kernel version: $KVER" && depmod -a "$KVER" && dracut --no-hostonly --reproducible --add ostree -f "/usr/lib/modules/$KVER/initramfs.img" "$KVER"
-EOF
+RUN mkdir -p /var/roothome && \
+    KVER=$(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}\n' kernel-cachyos-core) && echo "Kernel version: $KVER" && depmod -a "$KVER" && dracut --no-hostonly --reproducible --add ostree -f "/usr/lib/modules/$KVER/initramfs.img" "$KVER"
 
 #nvidia
 RUN dnf install -y kernel-devel
@@ -43,14 +33,8 @@ RUN mkdir -p /usr/lib/bootc/kargs.d && echo 'kargs = ["rd.driver.blacklist=nouve
 RUN KVER=$(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' kernel-cachyos-core) && akmods --force --kernels $KVER
 
 # Brave origin
-RUN <<EOF
-# mkdir -p /var/opt
-# dnf install -y dnf-plugins-core
-dnf config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo
-dnf install -y brave-origin
-# mkdir -p /usr/lib/opt && mv /var/opt/brave.com /usr/lib/opt/brave.com
-# mkdir -p /usr/lib/tmpfiles.d && echo 'L+ /var/opt/brave.com - - - - /usr/lib/opt/brave.com' > /usr/lib/tmpfiles.d/brave-opt.conf
-EOF
+RUN dnf config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo && \
+    dnf install -y brave-origin
 
 # for wifi:
 RUN dnf install -y NetworkManager-wifi wpa_supplicant iwlwifi-mvm-firmware
