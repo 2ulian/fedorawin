@@ -85,6 +85,7 @@ jobs:
 
       - name: Découper l'ISO (limite GitHub Release de 2 Go par fichier)
         run: |
+          sudo chown -R $(id -u):$(id -g) output
           cd output/bootiso
           split -b 1900M -d --additional-suffix=.part install.iso install.iso.
           sha256sum install.iso > install.iso.sha256
