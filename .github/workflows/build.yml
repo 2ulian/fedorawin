@@ -63,6 +63,9 @@ jobs:
       - name: Connexion à GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin --authfile ./auth.json
 
+      - name: Pull de l'image (stockage root, requis par bootc-image-builder)
+        run: sudo podman pull --authfile ./auth.json ${{ needs.build-image.outputs.image_ref }}:latest
+
       - name: Générer l'ISO avec bootc-image-builder
         run: |
           mkdir -p output
